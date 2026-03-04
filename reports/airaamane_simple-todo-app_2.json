@@ -1,0 +1,506 @@
+{
+  "pullRequest": {
+    "owner": "airaamane",
+    "repo": "simple-todo-app",
+    "number": 2
+  },
+  "fileReviews": [
+    {
+      "file": "src/todo.ts",
+      "codeQuality": {
+        "file": "src/todo.ts",
+        "issues": [
+          {
+            "line": 121,
+            "severity": "critical",
+            "category": "security",
+            "description": "SQL Injection vulnerability in searchTodos function. User input 'keyword' is directly interpolated into SQL query using template literals without parameterization or sanitization.",
+            "suggestion": "Use parameterized queries with placeholders: const query = 'SELECT * FROM todos WHERE title LIKE $1 OR description LIKE $2'; const rows = await db.query(query, [`%${keyword}%`, `%${keyword}%`]);"
+          },
+          {
+            "line": 132,
+            "severity": "critical",
+            "category": "security",
+            "description": "SQL Injection vulnerability in searchTodosByStatus function. User input 'completed' is directly concatenated into SQL query without validation or parameterization.",
+            "suggestion": "Use parameterized queries and validate input type: const query = 'SELECT * FROM todos WHERE completed = $1'; await db.query(query, [completed]);"
+          },
+          {
+            "line": 143,
+            "severity": "critical",
+            "category": "security",
+            "description": "SQL Injection vulnerability in getTodosByUser function. User input 'userId' is directly interpolated into SQL query without parameterization.",
+            "suggestion": "Use parameterized queries: const query = 'SELECT t.* FROM todos t JOIN user_todos ut ON t.id = ut.todo_id WHERE ut.user_id = $1'; const rows = await db.query(query, [userId]);"
+          },
+          {
+            "line": 130,
+            "severity": "high",
+            "category": "bug-risk",
+            "description": "Type mismatch in searchTodosByStatus function. Parameter 'completed' is typed as string but should be boolean to match the Todo interface.",
+            "suggestion": "Change parameter type to boolean: export async function searchTodosByStatus(completed: boolean): Promise<Todo[]>"
+          },
+          {
+            "line": 119,
+            "severity": "high",
+            "category": "security",
+            "description": "No input validation on searchTodos keyword parameter. Empty strings or excessively long strings could cause performance issues.",
+            "suggestion": "Add input validation: if (!keyword || keyword.trim().length === 0) { throw new Error('Keyword cannot be empty'); } if (keyword.length > 100) { throw new Error('Keyword too long'); }"
+          },
+          {
+            "line": 152,
+            "severity": "medium",
+            "category": "bug-risk",
+            "description": "Weak ID generation algorithm in generateId function. Using Date.now() + Math.random() is not cryptographically secure and could produce collisions.",
+            "suggestion": "Use a proper UUID library: import { v4 as uuidv4 } from 'uuid'; function generateId(): string { return uuidv4(); }"
+          },
+          {
+            "line": 79,
+            "severity": "medium",
+            "category": "performance",
+            "description": "getAllTodos could return large datasets without pagination. Loading all todos at once could cause memory issues.",
+            "suggestion": "Add pagination support: export async function getAllTodos(limit = 100, offset = 0): Promise<Todo[]>"
+          },
+          {
+            "line": 102,
+            "severity": "medium",
+            "category": "bug-risk",
+            "description": "updateTodoStatus doesn't verify if the todo exists before updating. Function silently succeeds even if no rows are affected.",
+            "suggestion": "Check affected rows and throw error if todo not found"
+          }
+        ],
+        "overallScore": 35,
+        "summary": "CRITICAL SECURITY ISSUES DETECTED. This code contains three critical SQL injection vulnerabilities in the newly added search functions that directly concatenate user input into SQL queries. These vulnerabilities could allow attackers to execute arbitrary SQL commands, steal data, or drop tables. The existing CRUD functions correctly use parameterized queries, but the new functions in this PR abandon this security practice."
+      },
+      "testCoverage": {
+        "file": "src/todo.ts",
+        "hasTests": true,
+        "testFiles": [
+          "src/todo.test.ts"
+        ],
+        "untestedPaths": [
+          {
+            "type": "function",
+            "location": "createTodo (lines 51-74)",
+            "priority": "critical",
+            "reasoning": "Core business logic for creating todos with validation, sanitization, and database insertion. No test coverage.",
+            "suggestedTest": "Test valid input, invalid input rejection, XSS sanitization, parameterized query usage"
+          },
+          {
+            "type": "function",
+            "location": "getAllTodos (lines 79-83)",
+            "priority": "critical",
+            "reasoning": "Primary read operation for fetching all todos. No test coverage.",
+            "suggestedTest": "Test returns all todos ordered by created_at DESC, handles empty dataset"
+          },
+          {
+            "type": "function",
+            "location": "getTodoById (lines 88-97)",
+            "priority": "critical",
+            "reasoning": "Used to fetch individual todos. Contains branching logic for null returns. No test coverage.",
+            "suggestedTest": "Test found todo, not found returns null, parameterized query prevents SQL injection"
+          },
+          {
+            "type": "function",
+            "location": "searchTodos (lines 119-124)",
+            "priority": "critical",
+            "reasoning": "NEW FUNCTION with SQL injection vulnerability and zero test coverage. Critical security risk.",
+            "suggestedTest": "Test keyword search functionality AND demonstrate SQL injection vulnerability with malicious input"
+          },
+          {
+            "type": "function",
+            "location": "searchTodosByStatus (lines 130-135)",
+            "priority": "critical",
+            "reasoning": "NEW FUNCTION with SQL injection vulnerability and zero test coverage.",
+            "suggestedTest": "Test status filtering AND demonstrate SQL injection with malicious status values"
+          },
+          {
+            "type": "function",
+            "location": "getTodosByUser (lines 141-146)",
+            "priority": "critical",
+            "reasoning": "NEW FUNCTION with SQL injection vulnerability and zero test coverage.",
+            "suggestedTest": "Test user filtering AND demonstrate SQL injection through userId parameter"
+          }
+        ],
+        "coverageEstimate": 15,
+        "summary": "Critical coverage gap. Only 2 out of 11 functions have tests (validateTodoInput and sanitizeInput). Missing tests for all core CRUD operations and all three SQL injection vulnerable functions. Estimated overall code path coverage is approximately 15%."
+      },
+      "refactorings": {
+        "file": "src/todo.ts",
+        "suggestions": [
+          {
+            "type": "modernize",
+            "location": "searchTodos function (lines 119-124)",
+            "impact": "high",
+            "description": "Critical SQL injection vulnerability. Must use parameterized queries.",
+            "before": "export async function searchTodos(keyword: string): Promise<Todo[]> {\n  const query = `SELECT * FROM todos WHERE title LIKE '%${keyword}%' OR description LIKE '%${keyword}%'`;\n  const rows = await db.query(query);\n  return rows as Todo[];\n}",
+            "after": "export async function searchTodos(keyword: string): Promise<Todo[]> {\n  const query = 'SELECT * FROM todos WHERE title LIKE $1 OR description LIKE $1';\n  const searchPattern = `%${keyword}%`;\n  const rows = await db.query(query, [searchPattern]);\n  return rows as Todo[];\n}",
+            "benefits": "Prevents SQL injection attacks by using parameterized queries"
+          },
+          {
+            "type": "modernize",
+            "location": "searchTodosByStatus (lines 130-135)",
+            "impact": "high",
+            "description": "Critical SQL injection vulnerability and type safety issue.",
+            "before": "export async function searchTodosByStatus(completed: string): Promise<Todo[]> {\n  const sql = \"SELECT * FROM todos WHERE completed = \" + completed;\n  const rows = await db.query(sql);\n  return rows as Todo[];\n}",
+            "after": "export async function searchTodosByStatus(completed: boolean): Promise<Todo[]> {\n  const query = 'SELECT * FROM todos WHERE completed = $1';\n  const rows = await db.query(query, [completed]);\n  return rows as Todo[];\n}",
+            "benefits": "Eliminates SQL injection vulnerability and improves type safety"
+          },
+          {
+            "type": "modernize",
+            "location": "getTodosByUser (lines 141-146)",
+            "impact": "high",
+            "description": "Critical SQL injection vulnerability.",
+            "before": "export async function getTodosByUser(userId: string): Promise<Todo[]> {\n  const query = `SELECT t.* FROM todos t JOIN user_todos ut ON t.id = ut.todo_id WHERE ut.user_id = '${userId}'`;\n  const rows = await db.query(query);\n  return rows as Todo[];\n}",
+            "after": "export async function getTodosByUser(userId: string): Promise<Todo[]> {\n  const query = 'SELECT t.* FROM todos t JOIN user_todos ut ON t.id = ut.todo_id WHERE ut.user_id = $1';\n  const rows = await db.query(query, [userId]);\n  return rows as Todo[];\n}",
+            "benefits": "Prevents SQL injection attacks through parameterized queries"
+          }
+        ],
+        "summary": "Found 3 critical security fixes required. All three search functions must use parameterized queries immediately to prevent SQL injection attacks."
+      }
+    },
+    {
+      "file": "src/database.ts",
+      "codeQuality": {
+        "file": "src/database.ts",
+        "issues": [
+          {
+            "line": 6,
+            "severity": "high",
+            "category": "security",
+            "description": "Database interface accepts raw SQL strings without parameterization guidance, enabling potential SQL injection vulnerabilities",
+            "suggestion": "Add documentation or type constraints to enforce parameterized queries"
+          },
+          {
+            "line": 13,
+            "severity": "high",
+            "category": "bug-risk",
+            "description": "Mock query method always returns empty array regardless of input, which may hide bugs in tests",
+            "suggestion": "Implement basic mock functionality or throw error indicating this is a stub"
+          },
+          {
+            "line": 6,
+            "severity": "medium",
+            "category": "maintainability",
+            "description": "Use of 'any' type for params array removes type safety",
+            "suggestion": "Replace 'any[]' with 'unknown[]' or create specific type for query parameters"
+          },
+          {
+            "line": 19,
+            "severity": "high",
+            "category": "best-practice",
+            "description": "Singleton database instance exported directly makes testing and dependency injection difficult",
+            "suggestion": "Export a factory function for better testability"
+          }
+        ],
+        "overallScore": 52,
+        "summary": "The database interface needs improvement. Major concerns include accepting raw SQL strings without parameterization guidance, extensive use of 'any' types, and a non-functional mock implementation that returns empty arrays. The singleton export pattern makes testing difficult."
+      },
+      "testCoverage": {
+        "file": "src/database.ts",
+        "hasTests": false,
+        "testFiles": [],
+        "untestedPaths": [
+          {
+            "type": "class",
+            "location": "MockDatabase class (lines 10-17)",
+            "priority": "critical",
+            "reasoning": "The MockDatabase class is used throughout the application but has no tests. The query method always returns empty arrays.",
+            "suggestedTest": "Test query method returns empty array, accepts SQL and params, handles various parameter types"
+          }
+        ],
+        "coverageEstimate": 0,
+        "summary": "The database.ts file has NO test coverage (0%). This is critical because the database layer is used throughout the todo application, and the MockDatabase always returns empty arrays, which means database interactions are never properly tested."
+      },
+      "refactorings": {
+        "file": "src/database.ts",
+        "suggestions": [
+          {
+            "type": "modernize",
+            "location": "Database interface and implementation",
+            "impact": "high",
+            "description": "Replace 'any' types with generics and implement functional mock database with in-memory storage",
+            "before": "export interface Database {\n  query(sql: string, params?: any[]): Promise<any[]>;\n}\n\nclass MockDatabase implements Database {\n  async query(sql: string, params: any[] = []): Promise<any[]> {\n    return [];\n  }\n}",
+            "after": "export interface Database {\n  query<T = unknown>(sql: string, params?: unknown[]): Promise<T[]>;\n}\n\nclass MockDatabase implements Database {\n  private tables: Map<string, Map<string, unknown>> = new Map();\n  \n  async query<T = unknown>(sql: string, params: unknown[] = []): Promise<T[]> {\n    // Implement basic CRUD operations with in-memory storage\n  }\n}",
+            "benefits": "Type-safe queries, functional mock for testing, better error detection"
+          }
+        ],
+        "summary": "Database interface needs type safety improvements and functional mock implementation for proper testing support."
+      }
+    },
+    {
+      "file": "README.md",
+      "codeQuality": {
+        "file": "README.md",
+        "issues": [
+          {
+            "line": 67,
+            "severity": "medium",
+            "category": "best-practice",
+            "description": "README doesn't emphasize that API keys should NEVER be committed to version control",
+            "suggestion": "Add explicit security warning about never committing .env file or API keys"
+          },
+          {
+            "line": 1,
+            "severity": "low",
+            "category": "maintainability",
+            "description": "Documentation is clear and well-structured",
+            "suggestion": "No issues - documentation follows best practices"
+          }
+        ],
+        "overallScore": 85,
+        "summary": "Documentation is well-structured and comprehensive. Minor improvement needed: add explicit security warnings about API key handling."
+      },
+      "testCoverage": {
+        "file": "README.md",
+        "hasTests": false,
+        "testFiles": [],
+        "untestedPaths": [],
+        "coverageEstimate": 100,
+        "summary": "Documentation file - no tests required."
+      },
+      "refactorings": {
+        "file": "README.md",
+        "suggestions": [],
+        "summary": "Documentation is well-organized. Consider adding more security guidance."
+      }
+    },
+    {
+      "file": "package.json",
+      "codeQuality": {
+        "file": "package.json",
+        "issues": [
+          {
+            "line": 6,
+            "severity": "medium",
+            "category": "best-practice",
+            "description": "Test script references 'jest' but no jest configuration or test files exist in the PR",
+            "suggestion": "Ensure jest is properly configured and test files are added"
+          },
+          {
+            "line": 14,
+            "severity": "low",
+            "category": "maintainability",
+            "description": "Dependencies use recent versions which is good for security",
+            "suggestion": "No issues - dependencies are appropriately versioned"
+          }
+        ],
+        "overallScore": 80,
+        "summary": "Package configuration is reasonable with appropriate dependencies. Minor issue: test script configured but minimal tests exist."
+      },
+      "testCoverage": {
+        "file": "package.json",
+        "hasTests": false,
+        "testFiles": [],
+        "untestedPaths": [],
+        "coverageEstimate": 100,
+        "summary": "Configuration file - no tests required."
+      },
+      "refactorings": {
+        "file": "package.json",
+        "suggestions": [],
+        "summary": "Configuration is appropriate for the project."
+      }
+    },
+    {
+      "file": "jest.config.js",
+      "codeQuality": {
+        "file": "jest.config.js",
+        "issues": [
+          {
+            "line": 1,
+            "severity": "low",
+            "category": "maintainability",
+            "description": "Jest configuration is appropriate for TypeScript project",
+            "suggestion": "No issues - standard jest configuration"
+          }
+        ],
+        "overallScore": 90,
+        "summary": "Jest configuration is standard and appropriate for a TypeScript project."
+      },
+      "testCoverage": {
+        "file": "jest.config.js",
+        "hasTests": false,
+        "testFiles": [],
+        "untestedPaths": [],
+        "coverageEstimate": 100,
+        "summary": "Configuration file - no tests required."
+      },
+      "refactorings": {
+        "file": "jest.config.js",
+        "suggestions": [],
+        "summary": "Configuration is appropriate."
+      }
+    },
+    {
+      "file": "tsconfig.json",
+      "codeQuality": {
+        "file": "tsconfig.json",
+        "issues": [
+          {
+            "line": 7,
+            "severity": "low",
+            "category": "maintainability",
+            "description": "TypeScript configuration uses strict mode which is excellent for code quality",
+            "suggestion": "No issues - strict mode enabled"
+          }
+        ],
+        "overallScore": 90,
+        "summary": "TypeScript configuration is strong with strict mode enabled, promoting type safety and code quality."
+      },
+      "testCoverage": {
+        "file": "tsconfig.json",
+        "hasTests": false,
+        "testFiles": [],
+        "untestedPaths": [],
+        "coverageEstimate": 100,
+        "summary": "Configuration file - no tests required."
+      },
+      "refactorings": {
+        "file": "tsconfig.json",
+        "suggestions": [],
+        "summary": "Configuration is appropriate."
+      }
+    },
+    {
+      "file": "src/todo.test.ts",
+      "codeQuality": {
+        "file": "src/todo.test.ts",
+        "issues": [
+          {
+            "line": 1,
+            "severity": "high",
+            "category": "bug-risk",
+            "description": "Test file only covers 2 out of 11 functions. Critical functions like createTodo, search functions are untested",
+            "suggestion": "Add comprehensive test coverage for all functions, especially the vulnerable search functions"
+          }
+        ],
+        "overallScore": 40,
+        "summary": "Test file exists but coverage is severely limited. Only tests validateTodoInput and sanitizeInput. Missing tests for all CRUD operations and vulnerable search functions."
+      },
+      "testCoverage": {
+        "file": "src/todo.test.ts",
+        "hasTests": true,
+        "testFiles": [
+          "src/todo.test.ts"
+        ],
+        "untestedPaths": [],
+        "coverageEstimate": 15,
+        "summary": "Test file provides only 15% coverage of the codebase. Covers only input validation functions."
+      },
+      "refactorings": {
+        "file": "src/todo.test.ts",
+        "suggestions": [
+          {
+            "type": "extract-function",
+            "location": "Test file structure",
+            "impact": "high",
+            "description": "Expand test coverage to include all functions, especially CRUD operations and vulnerable search functions",
+            "before": "describe('Todo List', () => {\n  describe('validateTodoInput', () => { /* 4 tests */ });\n  describe('sanitizeInput', () => { /* 2 tests */ });\n});",
+            "after": "describe('Todo List', () => {\n  describe('validateTodoInput', () => { /* existing tests */ });\n  describe('sanitizeInput', () => { /* existing tests */ });\n  describe('createTodo', () => { /* new tests */ });\n  describe('getAllTodos', () => { /* new tests */ });\n  describe('searchTodos', () => { /* new tests + SQL injection tests */ });\n  // ... more test suites\n});",
+            "benefits": "Comprehensive test coverage catches bugs and security vulnerabilities before production"
+          }
+        ],
+        "summary": "Test file needs significant expansion to cover all functions and edge cases."
+      }
+    }
+  ],
+  "summary": {
+    "totalFiles": 7,
+    "overallScore": 54,
+    "criticalIssues": 3,
+    "highPriorityTests": 8,
+    "refactoringOpportunities": 6
+  },
+  "recommendations": [
+    {
+      "priority": "critical",
+      "category": "Security - SQL Injection",
+      "description": "Fix all three SQL injection vulnerabilities in searchTodos, searchTodosByStatus, and getTodosByUser functions by replacing string concatenation/interpolation with parameterized queries. These vulnerabilities allow attackers to execute arbitrary SQL commands.",
+      "files": [
+        "src/todo.ts"
+      ]
+    },
+    {
+      "priority": "critical",
+      "category": "Testing - Missing Coverage",
+      "description": "Add comprehensive tests for all CRUD operations (createTodo, getAllTodos, getTodoById, updateTodoStatus, deleteTodo) which currently have zero test coverage. These are core business functions that must be tested before production.",
+      "files": [
+        "src/todo.ts",
+        "src/todo.test.ts"
+      ]
+    },
+    {
+      "priority": "critical",
+      "category": "Testing - Security Validation",
+      "description": "Add security-focused tests that demonstrate the SQL injection vulnerabilities in the three search functions. Tests should verify that malicious input like '; DROP TABLE todos; --' is safely handled after fixes are applied.",
+      "files": [
+        "src/todo.test.ts"
+      ]
+    },
+    {
+      "priority": "high",
+      "category": "Code Quality - Type Safety",
+      "description": "Fix type mismatch in searchTodosByStatus: change parameter type from 'string' to 'boolean' to match the Todo interface and prevent type errors at runtime.",
+      "files": [
+        "src/todo.ts"
+      ]
+    },
+    {
+      "priority": "high",
+      "category": "Testing - Database Mock",
+      "description": "Implement functional MockDatabase that actually stores and retrieves data instead of always returning empty arrays. Current implementation makes integration testing impossible.",
+      "files": [
+        "src/database.ts"
+      ]
+    },
+    {
+      "priority": "high",
+      "category": "Code Quality - Input Validation",
+      "description": "Add input validation to all search functions (keyword length limits, empty string checks, userId format validation) to prevent performance issues and improve error messages.",
+      "files": [
+        "src/todo.ts"
+      ]
+    },
+    {
+      "priority": "medium",
+      "category": "Security - ID Generation",
+      "description": "Replace weak ID generation (Date.now() + Math.random()) with cryptographically secure UUID generation using crypto.randomUUID() or uuid library to prevent ID collisions.",
+      "files": [
+        "src/todo.ts"
+      ]
+    },
+    {
+      "priority": "medium",
+      "category": "Code Quality - Error Handling",
+      "description": "Add existence checks in updateTodoStatus and deleteTodo to throw errors when operating on non-existent todos instead of silently succeeding.",
+      "files": [
+        "src/todo.ts"
+      ]
+    },
+    {
+      "priority": "medium",
+      "category": "Performance - Pagination",
+      "description": "Add pagination to getAllTodos function to prevent memory issues when loading large datasets. Implement limit and offset parameters.",
+      "files": [
+        "src/todo.ts"
+      ]
+    },
+    {
+      "priority": "low",
+      "category": "Documentation - Security",
+      "description": "Add explicit security warnings to README about never committing API keys or .env files to version control. Include best practices for secret management.",
+      "files": [
+        "README.md"
+      ]
+    }
+  ],
+  "metadata": {
+    "analyzedAt": "2026-03-04T11:21:22Z",
+    "duration": 0,
+    "agentVersions": {
+      "orchestrator": "1.0.0",
+      "code-quality-analyzer": "1.0.0",
+      "test-coverage-analyzer": "1.0.0",
+      "refactoring-suggester": "1.0.0"
+    }
+  }
+}
