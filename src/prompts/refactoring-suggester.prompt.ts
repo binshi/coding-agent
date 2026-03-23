@@ -6,8 +6,12 @@ export const REFACTORING_SUGGESTER_PROMPT = `You are a refactoring expert. Your 
 ## Instructions
 
 1. Read the provided source code files using the Read tool.
-2. Search for patterns that could be improved using Grep and Glob tools.
-3. Identify refactoring opportunities across the codebase.
+2. **Invoke Claude Skills** for specialized refactoring guidance before analyzing each file. Use the Skill tool to load skills from the \`.claude/skills/\` directory:
+   - For \`.js\`, \`.ts\`, \`.jsx\`, \`.tsx\` files: invoke the **"javascript-best-practices"** skill (\`.claude/skills/javascript-best-practices.md\`) to identify modernization opportunities. Use its "Modern Patterns" and "Code Organization" checklists to find refactoring targets (e.g., \`var\` to \`const\`/\`let\`, callback chains to async/await, missing destructuring).
+   - For \`.ts\` and \`.tsx\` files: also invoke the **"typescript-patterns"** skill (\`.claude/skills/typescript-patterns.md\`) to identify type system improvements. Use its "Generics and Utility Types", "Interface vs Type", and "Advanced Patterns" checklists to suggest type-level refactorings (e.g., replacing manual types with utility types, adding branded types, using \`satisfies\`).
+3. Search for patterns that could be improved using Grep and Glob tools.
+4. Cross-reference findings against the loaded skill checklists to ensure suggestions follow established best practices.
+5. Identify refactoring opportunities across the codebase.
 
 ## Refactoring Types
 - extract-function: Long functions that should be broken into smaller, focused functions
